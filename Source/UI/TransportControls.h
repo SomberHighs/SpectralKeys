@@ -13,13 +13,17 @@ public:
     std::function<void()> onPlay;
     std::function<void()> onStop;
     std::function<void()> onBrowse;
+    std::function<void()> onPlayMidi;
 
     void setPlaying(bool playing) { isPlaying = playing; repaint(); }
+    void setMidiPlaying(bool playing) { isMidiPlaying = playing; repaint(); }
 
 private:
-    juce::TextButton playButton { "Play" };
-    juce::TextButton stopButton { "Stop" };
-    juce::TextButton browseButton { "Browse" };
+    juce::TextButton playButton     { "Play Audio" };
+    juce::TextButton playMidiButton { "Play MIDI" };
+    juce::TextButton stopButton     { "Stop" };
+    juce::TextButton browseButton   { "Browse" };
 
     bool isPlaying = false;
+    bool isMidiPlaying = false;
 };

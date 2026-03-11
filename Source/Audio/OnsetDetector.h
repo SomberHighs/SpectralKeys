@@ -6,11 +6,10 @@ class OnsetDetector
 public:
     OnsetDetector() = default;
 
-    // Returns onset times in seconds
+    // sensitivity: 0.0 = few slices, 1.0 = many slices
     std::vector<double> detect(const std::vector<std::vector<float>>& magnitudeFrames,
-                               double sampleRate, int hopSize);
+                               double sampleRate, int hopSize, float sensitivity = 0.5f);
 
-    // Returns the spectral flux signal (used by BpmDetector too)
     const std::vector<float>& getSpectralFlux() const { return spectralFlux; }
 
 private:

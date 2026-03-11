@@ -34,7 +34,9 @@ target_sources(SpectralKeys
         Source/Audio/BpmDetector.cpp
         Source/MIDI/AudioToMidiConverter.cpp
         Source/MIDI/MidiExporter.cpp
+        Source/MIDI/MidiSynthesizer.cpp
         Source/UI/DropZoneComponent.cpp
+        Source/UI/ParameterControls.cpp
         Source/UI/SpectrogramComponent.cpp
         Source/UI/InfoDisplayComponent.cpp
         Source/UI/PianoRollComponent.cpp

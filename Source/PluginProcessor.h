@@ -8,6 +8,8 @@
 #include "Audio/BpmDetector.h"
 #include "MIDI/AudioToMidiConverter.h"
 #include "MIDI/MidiExporter.h"
+#include "MIDI/MidiSynthesizer.h"
+#include "UI/ParameterControls.h"
 
 class SpectralKeysProcessor : public juce::AudioProcessor,
                                public juce::Thread
@@ -42,6 +44,9 @@ public:
     void loadAudioFile(const juce::File& file);
     bool isAnalysing() const { return isThreadRunning(); }
 
+    // Re-process MIDI with new parameters (no re-analysis needed)
+    void reprocessMidi(const AnalysisParams& params);
+
     // Analysis results
     AudioFileManager audioFileManager;
     SpectrogramGenerator spectrogramGenerator;
@@ -50,7 +55,16 @@ public:
     KeyResult keyResult;
     float detectedBpm = 0.0f;
     std::atomic<bool> analysisComplete { false };
+    std::atomic<bool> midiUpdated { false };
     MidiExporter midiExporter;
+    MidiSynthesizer midiSynth;
+
+    // Raw analysis data (kept for re-processing)
+    std::vector<PitchFrame> rawPitchFrames;
+    std::vector<double> rawOnsets;
+
+    // Current params
+    AnalysisParams currentParams;
 
     // Playback
     std::atomic<bool> shouldPlay { false };
@@ -60,4 +74,5 @@ private:
     void run() override; // Analysis thread
 
     juce::File pendingFile;
+    double hostSampleRate = 44100.0;
 };

@@ -14,8 +14,10 @@ SpectralKeysProcessor::~SpectralKeysProcessor()
     stopThread(5000);
 }
 
-void SpectralKeysProcessor::prepareToPlay(double, int)
+void SpectralKeysProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
+    hostSampleRate = sampleRate;
+    midiSynth.prepareToPlay(sampleRate, samplesPerBlock);
 }
 
 void SpectralKeysProcessor::releaseResources()
@@ -27,6 +29,7 @@ void SpectralKeysProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
+    // Audio file playback
     if (shouldPlay && audioFileManager.hasLoadedFile())
     {
         const auto& audioBuffer = audioFileManager.getBuffer();
@@ -48,6 +51,10 @@ void SpectralKeysProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             playbackPosition = 0;
         }
     }
+
+    // MIDI synth playback (additive — mixes on top)
+    if (midiSynth.isPlaying())
+        midiSynth.renderBlock(buffer, buffer.getNumSamples());
 }
 
 void SpectralKeysProcessor::loadAudioFile(const juce::File& file)
@@ -56,6 +63,7 @@ void SpectralKeysProcessor::loadAudioFile(const juce::File& file)
         stopThread(5000);
 
     shouldPlay = false;
+    midiSynth.stop();
     playbackPosition = 0;
     analysisComplete = false;
     pendingFile = file;
@@ -82,12 +90,13 @@ void SpectralKeysProcessor::run()
 
     if (threadShouldExit()) return;
 
-    // Detect onsets and BPM
+    // Detect onsets with current sensitivity
     OnsetDetector onsetDetector;
-    auto onsets = onsetDetector.detect(
+    rawOnsets = onsetDetector.detect(
         spectrogramGenerator.getMagnitudeData(),
         Constants::kSampleRate,
-        Constants::kHopSize);
+        Constants::kHopSize,
+        currentParams.onsetSensitivity);
 
     if (threadShouldExit()) return;
 
@@ -101,22 +110,64 @@ void SpectralKeysProcessor::run()
 
     // Detect pitch
     PitchDetector pitchDetector;
-    auto pitchFrames = pitchDetector.detectAll(
+    rawPitchFrames = pitchDetector.detectAll(
         audioFileManager.getBuffer(),
         Constants::kSampleRate);
 
     if (threadShouldExit()) return;
 
-    // Convert to MIDI
+    // Convert to MIDI with current params
     AudioToMidiConverter converter;
     detectedNotes = converter.convert(
-        pitchFrames, onsets,
+        rawPitchFrames, rawOnsets,
         audioFileManager.getBuffer(),
         Constants::kSampleRate);
 
+    // Apply post-processing
+    converter.applyNoiseFilter(detectedNotes, currentParams.noiseThreshold, currentParams.minNoteLengthMs);
+    if (currentParams.quantizeToKey)
+        converter.quantizeToKey(detectedNotes, keyResult);
+    if (currentParams.quantizeToBpm)
+        converter.quantizeToGrid(detectedNotes, detectedBpm, currentParams.gridSubdivision);
+
     midiSequence = converter.toMidiSequence(detectedNotes, detectedBpm);
+    midiSynth.setNotes(detectedNotes);
 
     analysisComplete = true;
+}
+
+void SpectralKeysProcessor::reprocessMidi(const AnalysisParams& params)
+{
+    currentParams = params;
+
+    if (!audioFileManager.hasLoadedFile() || rawPitchFrames.empty())
+        return;
+
+    // Re-run onset detection with new sensitivity
+    OnsetDetector onsetDetector;
+    rawOnsets = onsetDetector.detect(
+        spectrogramGenerator.getMagnitudeData(),
+        Constants::kSampleRate,
+        Constants::kHopSize,
+        params.onsetSensitivity);
+
+    // Re-convert
+    AudioToMidiConverter converter;
+    detectedNotes = converter.convert(
+        rawPitchFrames, rawOnsets,
+        audioFileManager.getBuffer(),
+        Constants::kSampleRate);
+
+    // Apply post-processing
+    converter.applyNoiseFilter(detectedNotes, params.noiseThreshold, params.minNoteLengthMs);
+    if (params.quantizeToKey)
+        converter.quantizeToKey(detectedNotes, keyResult);
+    if (params.quantizeToBpm)
+        converter.quantizeToGrid(detectedNotes, detectedBpm, params.gridSubdivision);
+
+    midiSequence = converter.toMidiSequence(detectedNotes, detectedBpm);
+    midiSynth.setNotes(detectedNotes);
+    midiUpdated = true;
 }
 
 juce::AudioProcessorEditor* SpectralKeysProcessor::createEditor()

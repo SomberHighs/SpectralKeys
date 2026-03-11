@@ -4,7 +4,7 @@
 #include <cmath>
 
 std::vector<double> OnsetDetector::detect(const std::vector<std::vector<float>>& magnitudeFrames,
-                                          double sampleRate, int hopSize)
+                                          double sampleRate, int hopSize, float sensitivity)
 {
     spectralFlux.clear();
     std::vector<double> onsets;
@@ -29,22 +29,26 @@ std::vector<double> OnsetDetector::detect(const std::vector<std::vector<float>>&
     if (spectralFlux.empty()) return onsets;
 
     // Adaptive threshold with moving median
+    // Sensitivity controls delta: low sensitivity = high delta = fewer onsets
+    // sensitivity 0..1 maps delta from 3.0 to 0.5
+    float delta = 3.0f - sensitivity * 2.5f;
+    float offset = 0.02f - sensitivity * 0.015f; // 0.02 to 0.005
+
     int medianWindow = static_cast<int>(0.1 * sampleRate / hopSize);
     if (medianWindow < 3) medianWindow = 3;
     if (medianWindow % 2 == 0) medianWindow++;
 
     int halfWin = medianWindow / 2;
-    float delta = 1.5f;
-    float offset = 0.01f;
 
     double frameRate = sampleRate / hopSize;
-    int minOnsetFrames = static_cast<int>(Constants::kMinOnsetIntervalSec * frameRate);
+    // Min onset interval decreases with sensitivity
+    float minInterval = Constants::kMinOnsetIntervalSec + (1.0f - sensitivity) * 0.05f;
+    int minOnsetFrames = static_cast<int>(minInterval * frameRate);
 
     int lastOnsetFrame = -minOnsetFrames;
 
     for (int i = 0; i < (int)spectralFlux.size(); ++i)
     {
-        // Compute local median
         int start = std::max(0, i - halfWin);
         int end = std::min((int)spectralFlux.size(), i + halfWin + 1);
         std::vector<float> localWindow(spectralFlux.begin() + start, spectralFlux.begin() + end);
@@ -55,7 +59,7 @@ std::vector<double> OnsetDetector::detect(const std::vector<std::vector<float>>&
 
         if (spectralFlux[i] > threshold && (i - lastOnsetFrame) >= minOnsetFrames)
         {
-            double timeSec = (i + 1) * hopSize / sampleRate; // +1 because flux starts at frame 1
+            double timeSec = (i + 1) * hopSize / sampleRate;
             onsets.push_back(timeSec);
             lastOnsetFrame = i;
         }

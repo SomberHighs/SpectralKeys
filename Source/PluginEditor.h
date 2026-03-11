@@ -7,6 +7,7 @@
 #include "UI/PianoRollComponent.h"
 #include "UI/MidiDragComponent.h"
 #include "UI/TransportControls.h"
+#include "UI/ParameterControls.h"
 
 class SpectralKeysEditor : public juce::AudioProcessorEditor,
                             public juce::DragAndDropContainer,
@@ -29,6 +30,7 @@ private:
     PianoRollComponent pianoRoll;
     MidiDragComponent midiDrag;
     TransportControls transport;
+    ParameterControls paramControls;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 
@@ -36,4 +38,5 @@ private:
 
     void handleFileDrop(const juce::File& file);
     void updateUIFromAnalysis();
+    void onParamsChanged();
 };
