@@ -20,6 +20,8 @@ juce_add_plugin(SpectralKeys
     COPY_PLUGIN_AFTER_BUILD  TRUE
 )
 
+juce_generate_juce_header(SpectralKeys)
+
 target_sources(SpectralKeys
     PRIVATE
         Source/PluginProcessor.cpp
